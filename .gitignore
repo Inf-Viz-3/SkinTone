@@ -1,6 +1,6 @@
 # App specific stuff:
 
-facial_landmarks/imgs/*.jpg
+facial_landmarks/imgs/*.jp*g
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,3 +1,7 @@
+# App specific stuff:
+
+facial_landmarks/imgs/*.jpg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

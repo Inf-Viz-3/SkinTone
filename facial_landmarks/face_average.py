@@ -4,24 +4,25 @@ import numpy as np
 import math
 import sys
 import json
+import glob
 
 # Based on https://www.learnopencv.com/average-face-opencv-c-python-tutorial/
 # by Satya Mallick <spmallick@learnopencv.com>
 
 # Read points from text files in directory
-def read_points(crops_folder_path, imgs_folder_path, fileids):
+def read_points(folder_path, fileids):
+
     # Create an array of array of points.
     points_array = []
     #List all files in the directory and read points from text files one by one
-    for filePath in os.listdir(crops_folder_path):
-        if filePath.endswith(".json") and filePath[:filePath.find("_")] in fileids: 
-            with open(os.path.join(crops_folder_path, filePath)) as f:
-                points = json.load(f)
-            imgid = os.path.splitext(os.path.basename(filePath))[0]
-            iid = imgid[:imgid.find("_")]
-            img = cv2.imread(os.path.join(imgs_folder_path, "{0}.jpg".format(iid)))
-
-            points_array.append({"imagecrop_id":  imgid, "img": img, "points": points})
+    for fid in fileids:
+        if (os.path.exists(os.path.join(folder_path, "{fid}.json".format(fid=fid)))):
+            with open(os.path.join(folder_path, "{fid}.json".format(fid=fid))) as f:
+                faces = json.load(f)
+            
+            for face in faces:
+                img = cv2.imread(os.path.join(folder_path, "{fid}.png".format(fid=fid)))
+                points_array.append({"imagecrop_id":  fid, "img": img, "points": face["points"]})
     return points_array
                 
 # Compute similarity transform given two sets of two points.

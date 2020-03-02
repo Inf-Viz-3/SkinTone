@@ -7,18 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 import cv2
 import dlib
 import numpy as np
-
+import pandas as pd
+import multiprocessing
 import face_average
 
-predictor_path = "shape_predictor_68_face_landmarks.dat"
 faces_folder_path = "./imgs"
 crops_folder_path = "./crops"
-
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(predictor_path)
-
-files = glob.glob(os.path.join(faces_folder_path, "*.jp*g"))
-
 
 def transform_warp_image(imgdata, eyecornerDst, boundaryPts, w, h, n, pointsNorm, imagesNorm, pointsAvg):
     points1 = imgdata["points"]
@@ -48,32 +42,16 @@ def transform_warp_image(imgdata, eyecornerDst, boundaryPts, w, h, n, pointsNorm
     imagesNorm.append(img)
     return pointsAvg
 
-def process_pipeline(filename):
-    process_image(filename)
-    process_transform(filename)
+def process_transform(ids, year):
 
-    # now merge cropped images
+    filearr = face_average.read_points("overlays", ids)
 
-
-def process_transform(filename):
-
-    basename, file_extension = os.path.splitext(os.path.basename(filename))
-    # Replace this with some proper merge order:
-    allfiles = glob.glob(os.path.join(faces_folder_path, "*.jp*g"))
-
-    imgidx = allfiles.index(filename)
-    if (imgidx % 50 != 0 or imgidx == 0):
+    if len(filearr) == 0:
         return
-
-    fileids = [os.path.splitext(os.path.basename(f))[0]
-               for f in allfiles[imgidx: min(imgidx+10, len(allfiles))]]
-
     # magic happens here:
     w = 250
     h = 250
-    filearr = face_average.read_points(
-        crops_folder_path, faces_folder_path, fileids)
-
+    
     # Eye corners
     eyecornerDst = [(np.int(0.3 * w), np.int(h / 3)),
                     (np.int(0.7 * w), np.int(h / 3))]
@@ -126,55 +104,30 @@ def process_transform(filename):
     output = output / len(filearr)
 
     # Display result
-    cv2.imwrite("results/final{0}.png".format(basename), output)
+    cv2.imwrite("results/final{0}.png".format(int(year)), output)
 
 
-def process_image(filename):
-    basename, file_extension = os.path.splitext(os.path.basename(filename))
-    # img = dlib.load_rgb_image(filename)
-    imgcv = cv2.imread(filename, cv2.IMREAD_COLOR)
-    img = imgcv
+omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding = 'utf8')
+omniart_df = omniart_df.head(1000)
+omniart_df.sort_values(by="creation_year")
+omniart_by_year_grp = omniart_df.groupby(by="creation_year")
 
-    dets = detector(img, 1)
+def process_row(grpdata):
+    name, grp = grpdata
+    ids = list()
+    for row_index, row in grp.iterrows():
+        ids.append(row.id)
+    process_transform(ids, name)
 
-    faces = []
-    for k, d in enumerate(dets):
-        # Get the landmarks/parts for the face in box d.
-        crop = imgcv[d.top():d.bottom(), d.left():d.right()]
-        cv2.imwrite("crops/{0}_f{1}.png".format(basename, k), crop)
-
-        # predict ones for the entire image
-        shape = predictor(img, d)
-        points = []
-        for i in range(shape.num_parts):
-            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
-                       2, (0, 0, 255), 2)
-            raw_points = (shape.part(i).x, shape.part(i).y)
-            points.append(raw_points)
-
-        faces.append({
-            "box": [d.top(), d.bottom(), d.left(), d.right()],
-            "points": points
-        })
-        # write the points calculated based on the cropped image.
-        with open("crops/{0}_f{1}.json".format(basename, k), 'w') as outfile:
-            json.dump(points, outfile)
-        cv2.imwrite("crops/{0}_f{1}_o.png".format(basename, k), crop)
-
-    cv2.imwrite("overlays/{0}.png".format(basename), imgcv)
-    with open("overlays/{0}.json".format(basename), 'w') as outfile:
-        json.dump(faces, outfile)
-
-
-with ThreadPoolExecutor(max_workers=4) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files[:400]}
+with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+    no_downloaded = 0
+    futures = { executor.submit(process_row, grp,): grp for grp in omniart_by_year_grp }
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:
-            result = future.result()
+          result = future.result()
         except Exception as e:
-            print('%r generated an exception: %s' % (result, str(e)))
+            print('%r generated an exception: %s' % (result, e))
         else:
-            # do something
-            pass
-print("finished files")
+            no_downloaded+=1
+    print("finished files {0}".format(no_downloaded))

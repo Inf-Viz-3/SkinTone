@@ -104,7 +104,7 @@ def process_transform(ids, year):
     output = output / len(filearr)
 
     # Display result
-    cv2.imwrite("results/final{0}.png".format(int(year)), output)
+    cv2.imwrite("results/final{0}_w{1}.png".format(int(year), len(filearr)), output)
 
 
 omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding = 'utf8')

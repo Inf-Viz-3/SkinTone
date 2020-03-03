@@ -2,9 +2,7 @@ import numpy as np
 import cv2
 from sklearn.cluster import KMeans
 from collections import Counter
-import imutils
 import pprint
-from matplotlib import pyplot as plt
 
 
 def extractSkin(img):
@@ -162,44 +160,3 @@ def prety_print_data(color_info):
     for x in color_info:
         print(pprint.pformat(x))
         print()
-
-
-
-# Get Image from URL. If you want to upload an image file and use that comment the below code and replace with  image=cv2.imread("FILE_NAME")
-image = imutils.url_to_image(
-    "https://uploads6.wikiart.org/a-soldier-1510(2).jpg")
-
-# Resize image to a width of 250
-image = imutils.resize(image, width=250)
-
-# Show image
-plt.subplot(3, 1, 1)
-plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-plt.title("Original Image")
-# plt.show()
-
-# Apply Skin Mask
-skin = extractSkin(image)
-
-plt.subplot(3, 1, 2)
-plt.imshow(cv2.cvtColor(skin, cv2.COLOR_BGR2RGB))
-plt.title("Thresholded  Image")
-# plt.show()
-
-# Find the dominant color. Default is 1 , pass the parameter 'number_of_colors=N' where N is the specified number of colors
-dominantColors = extractDominantColor(skin, hasThresholding=True)
-
-# Show in the dominant color information
-print("Color Information")
-prety_print_data(dominantColors)
-
-# Show in the dominant color as bar
-print("Color Bar")
-colour_bar = plotColorBar(dominantColors)
-plt.subplot(3, 1, 3)
-plt.axis("off")
-plt.imshow(colour_bar)
-plt.title("Color Bar")
-
-plt.tight_layout()
-plt.show()

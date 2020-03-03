@@ -9,6 +9,7 @@ import dlib
 import numpy as np
 import pandas as pd
 import multiprocessing
+from skin import extractDominantColor
 
 import face_average
 
@@ -77,6 +78,9 @@ def scan(frame):
 
     return gender_, age_
 
+
+from sklearn.cluster import KMeans
+
 def process_image(filename):
     basename, file_extension = os.path.splitext(os.path.basename(filename))
     
@@ -96,12 +100,21 @@ def process_image(filename):
         return None
 
     for k, d in enumerate(dets):
-        # Get the landmarks/parts for the face in box d.
-        crop = imgcv[d.top():d.bottom(), d.left():d.right()]
-
-        # predict ones for the entire image
+        # predict facelandmarks for the entire image
         shape = predictor(imgcv, d)
         points = []
+
+        # extract the main face to determine color (points 1, 28, 17, 9)
+        crop = imgcv[
+            shape.part(27).y:shape.part(8).y,
+            shape.part(0).x:shape.part(16).x
+        ]
+
+        color = extractDominantColor(crop)
+        dominant_color = color[0].get("color")
+        # TODO: use dominant color, as for now just avg.
+        dominant_color = crop.mean(axis=0).mean(axis=0)
+
         for i in range(shape.num_parts):
             raw_points = (shape.part(i).x, shape.part(i).y)
             points.append(raw_points)
@@ -111,10 +124,18 @@ def process_image(filename):
             'box': [[d.top(), d.bottom(),d.left(), d.right()]],
             'points': [points],
             "gender": faces_gender[k],
-            "age": faces_age[k]
+            "age": faces_age[k],
+            "color": [dominant_color]
         })
         imgfaces_df = imgfaces_df.append(df)
-        print("img {0} - {1} {2}".format(len(dets), len(faces_gender), len(faces_age)))
+
+        
+        cv2.rectangle(imgcv,
+            (shape.part(0).x, shape.part(27).y),
+            (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1],dominant_color[2]), 5)
+
+    cv2.imwrite("overlays/{0}.jpg".format(basename), imgcv)
+
     
     return imgfaces_df
 
@@ -134,7 +155,7 @@ print("processing {0} files".format(len(files)))
 faces_df = pd.DataFrame()
 
 with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files[:100]}
+    futures = {executor.submit(process_pipeline, f): f for f in files[:10]}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:

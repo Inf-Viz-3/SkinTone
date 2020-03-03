@@ -1,3 +1,11 @@
+# VsCode
+settings.json
+
+# App specific stuff:
+facial_landmarks/imgs/*.jp*g
+facial_landmarks/crops/*.json
+facial_landmarks/overlays/*.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -168,6 +168,5 @@ with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         else:
             # do something
             pass
-faces_df = faces_df.set_index(["imgid", "faceid"])
-faces_df.to_csv("faces.csv")
+faces_df.to_json("faces.json", orient="records")
 print("finished files")

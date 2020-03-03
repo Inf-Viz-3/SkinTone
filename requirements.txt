@@ -4,3 +4,4 @@ opencv-python==4.2.0.32
 dlib==19.19.0
 requests==2.23.0
 scikit-learn==0.22.2
+pyyaml==5.3

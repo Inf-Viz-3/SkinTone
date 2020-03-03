@@ -46,7 +46,7 @@ def process_transform(ids, year):
 
     filearr = face_average.read_points("overlays", ids)
 
-    if len(filearr) == 0:
+    if len(filearr) < 2:
         return
     # magic happens here:
     w = 250
@@ -102,32 +102,40 @@ def process_transform(ids, year):
         output = output + img
     # Divide by numImages to get average
     output = output / len(filearr)
-
     # Display result
-    cv2.imwrite("results/final{0}_w{1}.png".format(int(year), len(filearr)), output)
+    cv2.imwrite("results/{0}.png".format(int(year)), output)
+    
+    imgsids = list(set([f["imagecrop_id"] for f in filearr]))
+    return {"year": int(year), "images": imgsids, "faces": []}
 
 
 omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding = 'utf8')
-omniart_df = omniart_df.head(1000)
+omniart_df = omniart_df
 omniart_df.sort_values(by="creation_year")
 omniart_by_year_grp = omniart_df.groupby(by="creation_year")
 
 def process_row(grpdata):
     name, grp = grpdata
     ids = list()
+    
     for row_index, row in grp.iterrows():
         ids.append(row.id)
-    process_transform(ids, name)
+    return process_transform(ids, name)
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
     no_downloaded = 0
     futures = { executor.submit(process_row, grp,): grp for grp in omniart_by_year_grp }
+    face_warp_hist = {}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:
           result = future.result()
+          if (isinstance(result, dict)):
+            face_warp_hist[str(result["year"])] = { "images": result["images"] }
         except Exception as e:
             print('%r generated an exception: %s' % (result, e))
         else:
             no_downloaded+=1
     print("finished files {0}".format(no_downloaded))
+    with open("results/hist.json", 'w') as outfile:
+            json.dump(face_warp_hist, outfile)

@@ -42,8 +42,8 @@ def process_image(filename):
         # with open("crops/{0}_fd{1}.json".format(basename, k), 'w') as outfile: json.dump(points, outfile)
         # cv2.imwrite("crops/{0}_fp{1}.png".format(basename, k), crop)
     if (len(faces) > 0):
-        cv2.imwrite("overlays/{0}_an.png".format(basename), imgcv)
-        cv2.imwrite("overlays/{0}.png".format(basename), img)
+        # cv2.imwrite("overlays/{0}_an.png".format(basename), imgcv)
+        # cv2.imwrite("overlays/{0}.png".format(basename), img)
         with open("overlays/{0}.json".format(basename), 'w') as outfile:
             json.dump(faces, outfile)
     else:

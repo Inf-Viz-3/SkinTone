@@ -155,7 +155,7 @@ print("processing {0} files".format(len(files)))
 faces_df = pd.DataFrame()
 
 with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files[:10]}
+    futures = {executor.submit(process_pipeline, f): f for f in files}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:

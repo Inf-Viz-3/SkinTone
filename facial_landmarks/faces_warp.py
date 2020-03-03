@@ -103,7 +103,7 @@ def process_transform(ids, year):
     # Divide by numImages to get average
     output = output / len(filearr)
     # Display result
-    cv2.imwrite("results/{0}.png".format(int(year)), output)
+    cv2.imwrite("results/{0}.jpg".format(int(year)), output)
     
     imgsids = list(set([f["imagecrop_id"] for f in filearr]))
     return {"year": int(year), "images": imgsids, "faces": []}

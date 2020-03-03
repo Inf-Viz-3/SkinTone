@@ -18,7 +18,7 @@ def process_row(rowobj):
     image_resp = requests.get(image_url.geturl())
     nparr = np.fromstring(image_resp.content, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    cv2.imwrite("imgs/{0}.png".format(row_data.id), img)
+    cv2.imwrite("imgs/{0}.jpg".format(row_data.id), img)
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
     no_downloaded = 0

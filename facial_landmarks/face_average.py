@@ -21,7 +21,7 @@ def read_points(folder_path, fileids):
                 faces = json.load(f)
             
             for face in faces:
-                img = cv2.imread(os.path.join(folder_path, "{fid}.png".format(fid=fid)))
+                img = cv2.imread(os.path.join(folder_path, "{fid}.jpg".format(fid=fid)))
                 points_array.append({"imagecrop_id":  fid, "img": img, "points": face["points"]})
     return points_array
                 

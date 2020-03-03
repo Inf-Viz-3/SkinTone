@@ -5,6 +5,7 @@ settings.json
 facial_landmarks/imgs/*.jp*g
 facial_landmarks/crops/*.json
 facial_landmarks/overlays/*.json
+facial_landmarks/overlays/*.jpg
 facial_landmarks/results/*.json
 
 # Byte-compiled / optimized / DLL files

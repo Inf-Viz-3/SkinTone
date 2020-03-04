@@ -1,6 +1,9 @@
 # VsCode
 settings.json
 
+# Xlsx
+*.xlsx
+
 # App specific stuff:
 facial_landmarks/imgs/*.jp*g
 facial_landmarks/crops/*.json

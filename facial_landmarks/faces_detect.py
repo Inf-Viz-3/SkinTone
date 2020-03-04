@@ -105,15 +105,15 @@ def process_image(filename):
         points = []
 
         # extract the main face to determine color (points 1, 28, 17, 9)
-        crop = imgcv[
-            shape.part(27).y:shape.part(8).y,
-            shape.part(0).x:shape.part(16).x
-        ]
-
-        color = extractDominantColor(crop)
-        dominant_color = color[0].get("color")
-        # TODO: use dominant color, as for now just avg.
-        dominant_color = crop.mean(axis=0).mean(axis=0)
+        try:
+            crop = imgcv[d.top():d.bottom(), d.left():d.right()]
+            skin = extractSkin(crop)
+            color = extractDominantColor(skin)
+            dominant_color = color[0].get("color")
+            # TODO: if each of this is smaller than than, take other 
+        except:
+            crop = imgcv[shape.part(27).y:shape.part(8).y, shape.part(0).x:shape.part(16).x]
+            dominant_color = crop.mean(axis=0).mean(axis=0)
 
         for i in range(shape.num_parts):
             raw_points = (shape.part(i).x, shape.part(i).y)

@@ -14,18 +14,20 @@ import face_average
 faces_folder_path = "./imgs"
 crops_folder_path = "./crops"
 
-def transform_warp_image(imgdata, eyecornerDst, boundaryPts, w, h, n, pointsNorm, imagesNorm, pointsAvg):
-    points1 = imgdata["points"]
+
+def transform_warp_image(fimg, imgpoints, eyecornerDst, boundaryPts, w, h, n, pointsNorm, imagesNorm, pointsAvg):
+    points1 = imgpoints
+
     # Corners of the eye in input image
-    eyecornerSrc = [imgdata["points"][36],  points1[45]]
-    for pt in imgdata["points"]:
+    eyecornerSrc = [imgpoints[36], points1[45]]
+    for pt in imgpoints:
         pass
-        # cv2.circle(imgdata["img"], (pt[0], pt[1]),2,(0,0,255),2)
+        # cv2.circle(fimg, (pt[0], pt[1]),2,(0,0,255),2)
     # Compute similarity transform
     tform = face_average.similarityTransform(eyecornerSrc, eyecornerDst)
 
     # Apply similarity transformation
-    img = cv2.warpAffine(imgdata["img"], tform, (w, h))
+    img = cv2.warpAffine(fimg, tform, (w, h))
 
     # Apply similarity transform on points
     points2 = np.reshape(np.array(points1), (68, 1, 2))
@@ -42,16 +44,21 @@ def transform_warp_image(imgdata, eyecornerDst, boundaryPts, w, h, n, pointsNorm
     imagesNorm.append(img)
     return pointsAvg
 
-def process_transform(ids, year):
 
-    filearr = face_average.read_points("overlays", ids)
+def process_transform(ids, grpname, facesdf, ofname):
+    faces = facesdf[facesdf.imgid.isin(ids)]
+    imgs = {}
+    for i, row in faces.iterrows():
+        if row.imgid not in imgs.keys():
+            imgs[row.imgid] = cv2.imread(os.path.join(
+                "imgs", "{fid}.jpg".format(fid=row.imgid)))
 
-    if len(filearr) < 2:
+    if faces.shape[0] < 2:
         return
     # magic happens here:
     w = 250
     h = 250
-    
+
     # Eye corners
     eyecornerDst = [(np.int(0.3 * w), np.int(h / 3)),
                     (np.int(0.7 * w), np.int(h / 3))]
@@ -65,13 +72,15 @@ def process_transform(ids, year):
 
     # Initialize location of average points to 0s
     pointsAvg = np.array(
-        [(0, 0)] * (len(filearr[0]["points"]) + len(boundaryPts)),
+        [(0, 0)] * (len(faces.iloc[0]["points"]) + len(boundaryPts)),
         np.float32())
 
     # Warp images and trasnform landmarks to output coordinate system,
     # and find average of transformed landmarks.
-    for i in range(0, len(filearr)):
-        pointsAvg = transform_warp_image(filearr[i], eyecornerDst, boundaryPts, w, h, len(filearr), pointsNorm, imagesNorm, pointsAvg)
+    for i in range(0, faces.shape[0]):
+        img = imgs[faces.iloc[i].imgid]
+        pointsAvg = transform_warp_image(
+            img, faces.iloc[i].points, eyecornerDst, boundaryPts, w, h, faces.shape[0], pointsNorm, imagesNorm, pointsAvg)
 
     # Delaunay triangulation
     rect = (0, 0, w, h)
@@ -101,41 +110,92 @@ def process_transform(ids, year):
         # Add image intensities for averaging
         output = output + img
     # Divide by numImages to get average
-    output = output / len(filearr)
+    output = output / faces.shape[0]
     # Display result
-    cv2.imwrite("results/{0}.png".format(int(year)), output)
-    
-    imgsids = list(set([f["imagecrop_id"] for f in filearr]))
-    return {"year": int(year), "images": imgsids, "faces": []}
+    cv2.imwrite("results/{1}/{0}.jpg".format(str(grpname), ofname), output)
+
+    return {"groupkey": grpname, "images": list(imgs.keys()), "faces": []}
 
 
-omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding = 'utf8')
-omniart_df = omniart_df
-omniart_df.sort_values(by="creation_year")
-omniart_by_year_grp = omniart_df.groupby(by="creation_year")
-
-def process_row(grpdata):
-    name, grp = grpdata
+def process_row(grpdata, faces_df, ofname):
+    grpname, grp = grpdata
     ids = list()
-    
-    for row_index, row in grp.iterrows():
-        ids.append(row.id)
-    return process_transform(ids, name)
+    if (isinstance(grpname, tuple)):
+        grpname = "-".join(map(str, grpname))
+    else:
+        grpname = str(grpname)
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-    no_downloaded = 0
-    futures = { executor.submit(process_row, grp,): grp for grp in omniart_by_year_grp }
-    face_warp_hist = {}
-    for future in concurrent.futures.as_completed(futures):
-        result = futures[future]
-        try:
-          result = future.result()
-          if (isinstance(result, dict)):
-            face_warp_hist[str(result["year"])] = { "images": result["images"] }
-        except Exception as e:
-            print('%r generated an exception: %s' % (result, e))
-        else:
-            no_downloaded+=1
-    print("finished files {0}".format(no_downloaded))
-    with open("results/hist.json", 'w') as outfile:
+    for row_index, row in grp.iterrows():
+       ids.append(row_index)
+    return process_transform(ids, grpname, faces_df, ofname)
+
+
+def process_dataframe(ofname, grouped_df, face_df):
+    rdir = os.path.join("results", ofname)
+    if not os.path.exists(rdir):
+        os.makedirs(rdir)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        no_downloaded = 0
+        futures = {executor.submit(
+            process_row, grp, face_df, ofname): grp for grp in grouped_df}
+        face_warp_hist = {}
+        for future in concurrent.futures.as_completed(futures):
+            result = futures[future]
+            try:
+                result = future.result()
+                if (isinstance(result, dict)):
+                    face_warp_hist[result["groupkey"]] = {
+                        "images": result["images"]}
+            except Exception as e:
+                print('%r generated an exception: %s' % (result, e))
+            else:
+                no_downloaded += 1
+        print("finished files {0}".format(no_downloaded))
+        with open("results/{0}.json".format(ofname), 'w') as outfile:
             json.dump(face_warp_hist, outfile)
+
+
+faces_df = pd.read_json("faces.json")
+
+omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding='utf8')
+
+omniart_df.creation_year = pd.to_numeric(
+    omniart_df.creation_year, downcast='integer')
+omniart_df = omniart_df[omniart_df.id.isin(faces_df.imgid.unique())]
+
+omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
+
+# Warp images depending on group
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["creation_year"])
+process_dataframe("yearly", omnifaces_grouped, faces_df)
+
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["gender", "creation_year"])
+process_dataframe("yearly-gender", omnifaces_grouped, faces_df)
+
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["age", "creation_year"])
+process_dataframe("yearly-age", omnifaces_grouped, faces_df)
+
+omnifaces_df["decade"] = omnifaces_df.creation_year.floordiv(10)
+omnifaces_df.sort_values(by="decade")
+omnifaces_grouped = omnifaces_df.groupby(by=["decade"])
+process_dataframe("decade", omnifaces_grouped, faces_df)
+
+omnifaces_grouped = omnifaces_df.groupby(by=["gender", "decade"])
+process_dataframe("decade-gender", omnifaces_grouped, faces_df)
+
+omnifaces_grouped = omnifaces_df.groupby(by=["age", "decade"])
+process_dataframe("decade-age", omnifaces_grouped, faces_df)
+
+omnifaces_df["century"] = omnifaces_df.creation_year.floordiv(100)
+omnifaces_df.sort_values(by="century")
+omnifaces_grouped = omnifaces_df.groupby(by=["century"])
+process_dataframe("century", omnifaces_grouped, faces_df)
+
+omnifaces_grouped = omnifaces_df.groupby(by=["gender", "century"])
+process_dataframe("century-gender", omnifaces_grouped, faces_df)
+
+omnifaces_grouped = omnifaces_df.groupby(by=["age", "century"])
+process_dataframe("century-age", omnifaces_grouped, faces_df)

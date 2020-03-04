@@ -7,7 +7,7 @@ import pprint
 
 def extractSkin(img):
     # Taking a copy of the image
-    img = image.copy()
+    img = img.copy()
     # Converting from BGR Colours Space to HSV
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 

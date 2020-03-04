@@ -9,7 +9,7 @@ import dlib
 import numpy as np
 import pandas as pd
 import multiprocessing
-from skin import extractDominantColor
+from skin import extractDominantColor, extractSkin
 
 import face_average
 
@@ -110,12 +110,15 @@ def process_image(filename):
             skin = extractSkin(crop)
             color = extractDominantColor(skin)
             dominant_color = color[0].get("color")
+            # TODO: this currently does not detect the right color - thus raise an error
+            raise "not correct yet"
             # TODO: if each of this is smaller than than, take other 
-        except:
+        except Exception as e:
             crop = imgcv[shape.part(27).y:shape.part(8).y, shape.part(0).x:shape.part(16).x]
             dominant_color = crop.mean(axis=0).mean(axis=0)
 
         for i in range(shape.num_parts):
+            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y), 2, (0, 0, 255), 2)
             raw_points = (shape.part(i).x, shape.part(i).y)
             points.append(raw_points)
         df = pd.DataFrame(data={
@@ -129,10 +132,10 @@ def process_image(filename):
         })
         imgfaces_df = imgfaces_df.append(df)
 
-        
-        cv2.rectangle(imgcv,
-            (shape.part(0).x, shape.part(27).y),
-            (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1],dominant_color[2]), 5)
+        # Paint dominant color rect
+        # cv2.rectangle(imgcv,
+        #    (shape.part(0).x, shape.part(27).y),
+        #    (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1],dominant_color[2]), 5)
 
     cv2.imwrite("overlays/{0}.jpg".format(basename), imgcv)
 
@@ -155,7 +158,7 @@ print("processing {0} files".format(len(files)))
 faces_df = pd.DataFrame()
 
 with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files}
+    futures = {executor.submit(process_pipeline, f): f for f in files[:100]}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:

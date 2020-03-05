@@ -3,7 +3,7 @@ import glob
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
-
+import imutils
 import cv2
 import dlib
 import numpy as np
@@ -107,11 +107,27 @@ def process_image(filename):
         # extract the main face to determine color (points 1, 28, 17, 9)
         try:
             crop = imgcv[d.top():d.bottom(), d.left():d.right()]
+            crop = imutils.resize(crop, width=250)
             skin = extractSkin(crop)
-            color = extractDominantColor(skin)
-            dominant_color = color[0].get("color")
+            color = extractDominantColor(skin, hasThresholding=True)
+            dominant_color1 = color[0].get("color")
+            dominant_color=[]
+            for i in dominant_color1:
+                aa=round(i)
+                dominant_color.append(aa)
+            if dominant_color[0] <20:
+                if dominant_color[1] <20:
+                    if dominant_color[2]< 20:
+                        dominant_color1=color[1].get("color")
+                        dominant_color=[]
+                        for i in dominant_color1:
+                            aa=round(i)
+                            dominant_color.append(aa)
+            print(dominant_color)
+            
+
             # TODO: this currently does not detect the right color - thus raise an error
-            raise "not correct yet"
+            #raise "not correct yet"
             # TODO: if each of this is smaller than than, take other 
         except Exception as e:
             crop = imgcv[shape.part(27).y:shape.part(8).y, shape.part(0).x:shape.part(16).x]
@@ -133,9 +149,9 @@ def process_image(filename):
         imgfaces_df = imgfaces_df.append(df)
 
         # Paint dominant color rect
-        # cv2.rectangle(imgcv,
-        #    (shape.part(0).x, shape.part(27).y),
-        #    (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1],dominant_color[2]), 5)
+        cv2.rectangle(imgcv,
+            (shape.part(0).x, shape.part(27).y),
+            (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1], dominant_color[2]), 5)
 
     cv2.imwrite("overlays/{0}.jpg".format(basename), imgcv)
 
@@ -157,8 +173,8 @@ files = glob.glob(os.path.join(faces_folder_path, "*.*"))
 print("processing {0} files".format(len(files)))
 faces_df = pd.DataFrame()
 
-with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files[:100]}
+with ThreadPoolExecutor(max_workers=1) as executor:
+    futures = {executor.submit(process_pipeline, f): f for f in files[:10]}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:

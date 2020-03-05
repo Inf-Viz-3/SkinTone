@@ -149,9 +149,12 @@ def process_image(filename):
         imgfaces_df = imgfaces_df.append(df)
 
         # Paint dominant color rect
+        r=dominant_color[0]
+        g=dominant_color[1]
+        b=dominant_color[2]
         cv2.rectangle(imgcv,
             (shape.part(0).x, shape.part(27).y),
-            (shape.part(16).x, shape.part(8).y), (dominant_color[0], dominant_color[1], dominant_color[2]), 5)
+            (shape.part(16).x, shape.part(8).y), (b, g, r), 5)
 
     cv2.imwrite("overlays/{0}.jpg".format(basename), imgcv)
 

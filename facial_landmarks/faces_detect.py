@@ -115,15 +115,13 @@ def process_image(filename):
             for i in dominant_color1:
                 aa=round(i)
                 dominant_color.append(aa)
-            if dominant_color[0] <20:
-                if dominant_color[1] <20:
-                    if dominant_color[2]< 20:
-                        dominant_color1=color[1].get("color")
-                        dominant_color=[]
-                        for i in dominant_color1:
-                            aa=round(i)
-                            dominant_color.append(aa)
-            print(dominant_color)
+            if sum(dominant_color)<60:
+                dominant_color1=color[1].get("color")
+                dominant_color=[]
+                for i in dominant_color1:
+                    aa=round(i)
+                    dominant_color.append(aa)
+            
             
 
             # TODO: this currently does not detect the right color - thus raise an error

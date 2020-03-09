@@ -39,7 +39,6 @@ def transform_warp_image(fimg, imgpoints, eyecornerDst, boundaryPts, w, h, n, po
 
     # Calculate location of average landmark points.
     pointsAvg = pointsAvg + points / n
-
     pointsNorm.append(points)
     imagesNorm.append(img)
     return pointsAvg
@@ -52,12 +51,15 @@ def process_transform(ids, grpname, facesdf, ofname):
         if row.imgid not in imgs.keys():
             imgs[row.imgid] = cv2.imread(os.path.join(
                 "imgs", "{fid}.jpg".format(fid=row.imgid)))
+            # cv2.imwrite(
+            #     "debug/{1}/{0}_{2}.jpg".format(str(grpname), ofname, row.imgid), imgs[row.imgid])
 
     if faces.shape[0] < 2:
         return
     # magic happens here:
-    w = 250
-    h = 250
+    w = 1000
+    h = 1000
+    pointf = max(int((w / 250)), 1)
 
     # Eye corners
     eyecornerDst = [(np.int(0.3 * w), np.int(h / 3)),
@@ -96,25 +98,44 @@ def process_transform(ids, grpname, facesdf, ofname):
         for j in range(0, len(dt)):
             tin = []
             tout = []
-
             for k in range(0, 3):
                 pIn = pointsNorm[i][dt[j][k]]
                 pIn = face_average.constrainPoint(pIn, w, h)
-
                 pOut = pointsAvg[dt[j][k]]
                 pOut = face_average.constrainPoint(pOut, w, h)
 
                 tin.append(pIn)
                 tout.append(pOut)
             face_average.warpTriangle(imagesNorm[i], img, tin, tout)
+            # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), img)
+            # cv2.imwrite("debug/{0}_{1}.jpg".format(str(grpname), i), imagesNorm[i])
         # Add image intensities for averaging
+        # cv2.imwrite("debug/2_{0}_{1}.jpg".format(str(grpname), i), imagesNorm[i])
         output = output + img
     # Divide by numImages to get average
     output = output / faces.shape[0]
+
+    # Get the average points of the face
+    averageFacialLandmarks = pointsAvg[:-(len(boundaryPts))]
+    averageFacialLandmarks = [ (int(pt[0]), int(pt[1])) for pt in averageFacialLandmarks]
+
+    r, g, b = face_average.extract_dominant_color(
+        output, averageFacialLandmarks)
+
+    # Plot a mask
+    facemaskimg = np.zeros((h, w, 4), np.float32())
+    for pt in averageFacialLandmarks:
+        cv2.circle(facemaskimg, (int(pt[0]), int(
+            pt[1])), 3, (0, 0, 0, 255), pointf * 3)
+        cv2.circle(facemaskimg, (int(pt[0]), int(
+            pt[1])), 2, (b, g, r, 255), pointf * 2)
+
     # Display result
+    cv2.imwrite(
+        "results/{1}/{0}_mask.png".format(str(grpname), ofname), facemaskimg)
     cv2.imwrite("results/{1}/{0}.jpg".format(str(grpname), ofname), output)
 
-    return {"groupkey": grpname, "images": list(imgs.keys()), "faces": []}
+    return {"groupkey": grpname, "images": list(imgs.keys()), "faces": [], "landmarks": averageFacialLandmarks}
 
 
 def process_row(grpdata, faces_df, ofname):
@@ -132,8 +153,11 @@ def process_row(grpdata, faces_df, ofname):
 
 def process_dataframe(ofname, grouped_df, face_df):
     rdir = os.path.join("results", ofname)
+    ddir = os.path.join("debug", ofname)
     if not os.path.exists(rdir):
         os.makedirs(rdir)
+    if not os.path.exists(ddir):
+        os.makedirs(ddir)
     with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         no_downloaded = 0
         futures = {executor.submit(
@@ -145,7 +169,9 @@ def process_dataframe(ofname, grouped_df, face_df):
                 result = future.result()
                 if (isinstance(result, dict)):
                     face_warp_hist[result["groupkey"]] = {
-                        "images": result["images"]}
+                        "images": result["images"],
+                        "landmarks": result["landmarks"]
+                        }
             except Exception as e:
                 print('%r generated an exception: %s' % (result, e))
             else:

@@ -5,6 +5,39 @@ import math
 import sys
 import json
 import glob
+from skin import extractDominantColor, extractSkin
+import imutils
+
+
+def extract_dominant_color(img,  landmarks):
+    # extract the main face to determine color (points 1, 28, 17, 9)
+    try:
+        crop = imutils.resize(img, width=250)
+        skin = extractSkin(crop)
+        color = extractDominantColor(skin, hasThresholding=True)
+        dominant_color1 = color[0].get("color")
+        dominant_color = []
+        for i in dominant_color1:
+            aa = round(i)
+            dominant_color.append(aa)
+        if sum(dominant_color) < 60:
+            dominant_color1 = color[1].get("color")
+            dominant_color = []
+            for i in dominant_color1:
+                aa = round(i)
+                dominant_color.append(aa)
+        r=int(dominant_color[0])
+        g=int(dominant_color[1])
+        b=int(dominant_color[2])
+    except Exception as e:
+        # only average the cut out face
+        crop = img[int(landmarks[27][1]):int(landmarks[8][1])
+                      , int(landmarks[0][0]):int(landmarks[16][0])]
+        dominant_color = crop.mean(axis=0).mean(axis=0)
+        r=int(dominant_color[2])
+        g=int(dominant_color[1])
+        b=int(dominant_color[0])
+    return (r, g, b)
 
 # Based on https://www.learnopencv.com/average-face-opencv-c-python-tutorial/
 # by Satya Mallick <spmallick@learnopencv.com>
@@ -113,7 +146,7 @@ def applyAffineTransform(src, srcTri, dstTri, size) :
     
     # Given a pair of triangles, find the affine transform.
     warpMat = cv2.getAffineTransform( np.float32(srcTri), np.float32(dstTri) )
-    
+
     # Apply the Affine Transform just found to the src image
     dst = cv2.warpAffine( src, warpMat, (size[0], size[1]), None, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101 )
 
@@ -153,5 +186,5 @@ def warpTriangle(img1, img2, t1, t2) :
 
     # Copy triangular region of the rectangular patch to the output image
     img2[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
-     
+    
     img2[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2Rect

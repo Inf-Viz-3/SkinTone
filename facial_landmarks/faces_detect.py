@@ -10,14 +10,20 @@ import numpy as np
 import pandas as pd
 import multiprocessing
 from skin import extractDominantColor, extractSkin
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances_argmin
+from sklearn.datasets import load_sample_image
+from sklearn.utils import shuffle
 
 import face_average
+
 
 def getFaceBox(net, frame, conf_threshold=0.7):
     frameOpencvDnn = frame.copy()
     frameHeight = frameOpencvDnn.shape[0]
     frameWidth = frameOpencvDnn.shape[1]
-    blob = cv2.dnn.blobFromImage(frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], True, False)
+    blob = cv2.dnn.blobFromImage(frameOpencvDnn, 1.0, (300, 300), [
+                                 104, 117, 123], True, False)
 
     net.setInput(blob)
     detections = net.forward()
@@ -30,8 +36,10 @@ def getFaceBox(net, frame, conf_threshold=0.7):
             x2 = int(detections[0, 0, i, 5] * frameWidth)
             y2 = int(detections[0, 0, i, 6] * frameHeight)
             bboxes.append([x1, y1, x2, y2])
-            cv2.rectangle(frameOpencvDnn, (x1, y1), (x2, y2), (0, 255, 0), int(round(frameHeight/150)), 8)
+            cv2.rectangle(frameOpencvDnn, (x1, y1), (x2, y2),
+                          (0, 255, 0), int(round(frameHeight/150)), 8)
     return frameOpencvDnn, bboxes
+
 
 def scan(frame):
 
@@ -49,9 +57,10 @@ def scan(frame):
     faceNet = cv2.dnn.readNet(faceModel, faceProto)
 
     MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)
-    ageList = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']
+    ageList = ['(0-2)', '(4-6)', '(8-12)', '(15-20)',
+               '(25-32)', '(38-43)', '(48-53)', '(60-100)']
     genderList = ['Male', 'Female']
-    
+
     padding = 20
 
     frameFace, bboxes = getFaceBox(faceNet, frame)
@@ -63,14 +72,16 @@ def scan(frame):
     age_ = []
     for bbox in bboxes:
         #print(f'\t Face Detected')
-        face = frame[max(0,bbox[1]-padding):min(bbox[3]+padding,frame.shape[0]-1),max(0,bbox[0]-padding):min(bbox[2]+padding, frame.shape[1]-1)]
+        face = frame[max(0, bbox[1]-padding):min(bbox[3]+padding, frame.shape[0]-1),
+                     max(0, bbox[0]-padding):min(bbox[2]+padding, frame.shape[1]-1)]
 
-        blob = cv2.dnn.blobFromImage(face, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
+        blob = cv2.dnn.blobFromImage(
+            face, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
         genderNet.setInput(blob)
         genderPreds = genderNet.forward()
         gender = genderList[genderPreds[0].argmax()]
         gender_.append(gender)
-        
+
         ageNet.setInput(blob)
         agePreds = ageNet.forward()
         age = ageList[agePreds[0].argmax()]
@@ -79,16 +90,14 @@ def scan(frame):
     return gender_, age_
 
 
-from sklearn.cluster import KMeans
-
 def process_image(filename):
     basename, file_extension = os.path.splitext(os.path.basename(filename))
-    
+
     imgcv = cv2.imread(filename, cv2.IMREAD_COLOR)
 
+    pointf = max(int(imgcv.shape[1] / 250), 1)
     dets = detector(imgcv, 1)
 
-    
     if (len(dets) == 0):
         cv2.imwrite("missed/{0}.png".format(basename), imgcv)
         return None
@@ -104,60 +113,38 @@ def process_image(filename):
         shape = predictor(imgcv, d)
         points = []
 
+        landmarks = [(shape.part(i).x, shape.part(i).y)
+                     for i in range(shape.num_parts)]
         # extract the main face to determine color (points 1, 28, 17, 9)
-        try:
-            crop = imgcv[d.top():d.bottom(), d.left():d.right()]
-            crop = imutils.resize(crop, width=250)
-            skin = extractSkin(crop)
-            color = extractDominantColor(skin, hasThresholding=True)
-            dominant_color1 = color[0].get("color")
-            dominant_color=[]
-            for i in dominant_color1:
-                aa=round(i)
-                dominant_color.append(aa)
-            if sum(dominant_color)<60:
-                dominant_color1=color[1].get("color")
-                dominant_color=[]
-                for i in dominant_color1:
-                    aa=round(i)
-                    dominant_color.append(aa)
-            
-            
-
-            # TODO: this currently does not detect the right color - thus raise an error
-            #raise "not correct yet"
-            # TODO: if each of this is smaller than than, take other 
-        except Exception as e:
-            crop = imgcv[shape.part(27).y:shape.part(8).y, shape.part(0).x:shape.part(16).x]
-            dominant_color = crop.mean(axis=0).mean(axis=0)
-
+        r, g, b = face_average.extract_dominant_color(imgcv, landmarks)
         for i in range(shape.num_parts):
-            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y), 2, (0, 0, 255), 2)
+            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
+                       2, (0, 0, 255), 4 * pointf)
+            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
+                       2, (b, g, r), 2 * pointf)
             raw_points = (shape.part(i).x, shape.part(i).y)
             points.append(raw_points)
+
         df = pd.DataFrame(data={
             'imgid': [basename],
             'faceid': [k],
-            'box': [[d.top(), d.bottom(),d.left(), d.right()]],
+            'box': [[d.top(), d.bottom(), d.left(), d.right()]],
             'points': [points],
             "gender": faces_gender[k],
             "age": faces_age[k],
-            "color": [dominant_color]
+            "color": [(r, g, b)]
         })
         imgfaces_df = imgfaces_df.append(df)
 
         # Paint dominant color rect
-        r=dominant_color[0]
-        g=dominant_color[1]
-        b=dominant_color[2]
-        cv2.rectangle(imgcv,
-            (shape.part(0).x, shape.part(27).y),
-            (shape.part(16).x, shape.part(8).y), (b, g, r), 5)
+        # cv2.rectangle(imgcv,
+        #              (shape.part(0).x, shape.part(27).y),
+        #              (shape.part(16).x, shape.part(8).y), (b, g, r), 5)
 
     cv2.imwrite("overlays/{0}.jpg".format(basename), imgcv)
 
-    
     return imgfaces_df
+
 
 def process_pipeline(filename):
     return process_image(filename)
@@ -175,18 +162,46 @@ print("processing {0} files".format(len(files)))
 faces_df = pd.DataFrame()
 
 with ThreadPoolExecutor(max_workers=1) as executor:
-    futures = {executor.submit(process_pipeline, f): f for f in files[:10]}
+    futures = {executor.submit(process_pipeline, f): f for f in files}
     for future in concurrent.futures.as_completed(futures):
         result = futures[future]
         try:
             result = future.result()
             if (result is not None):
-                pass
                 faces_df = faces_df.append(result)
         except Exception as e:
             print('%r generated an exception: %s' % (result, str(e)))
         else:
             # do something
             pass
-faces_df.to_json("faces.json", orient="records")
-print("finished files")
+
+# Group colors
+
+number_of_colors = 9
+colors = pd.DataFrame([], columns=['R', 'G', 'B', 'imgid', 'faceid'])
+for idx, rowobj in enumerate(faces_df.iterrows()):
+    row = rowobj[1]
+    r = row['color'][0]
+    g = row['color'][1]
+    b = row['color'][2]
+    imgid = row['imgid']
+    faceid = row['faceid']
+    colors.loc[idx] = [r, g, b, imgid, faceid]
+    print(idx)
+
+print(colors)
+
+estimator = KMeans(n_clusters=number_of_colors, random_state=0)
+
+# Fit the image
+estimator.fit(colors[['R', 'G', 'B']])
+
+colorsgrouped = pd.DataFrame(
+    {'group': estimator.labels_, 'R': colors['R'], 'G': colors['G'], 'B': colors['B'], 'imgid': colors['imgid'], 'faceid': colors['faceid']})
+
+new_faces = pd.merge(faces_df, colorsgrouped[['group', 'imgid', "faceid"]], on=[
+                     'imgid', "faceid"], how='outer')
+
+new_faces.to_json("faces.json", orient="records")
+print("finished faces", faces_df.shape[0])
+print("finished new faces", new_faces.shape[0])

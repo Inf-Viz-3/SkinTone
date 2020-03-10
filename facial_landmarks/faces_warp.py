@@ -49,10 +49,7 @@ def process_transform(ids, grpname, facesdf, ofname):
     imgs = {}
     for i, row in faces.iterrows():
         if row.imgid not in imgs.keys():
-            imgs[row.imgid] = cv2.imread(os.path.join(
-                "imgs", "{fid}.jpg".format(fid=row.imgid)))
-            # cv2.imwrite(
-            #     "debug/{1}/{0}_{2}.jpg".format(str(grpname), ofname, row.imgid), imgs[row.imgid])
+            imgs[row.imgid] = "keep"
 
     if faces.shape[0] < 2:
         return
@@ -80,7 +77,7 @@ def process_transform(ids, grpname, facesdf, ofname):
     # Warp images and trasnform landmarks to output coordinate system,
     # and find average of transformed landmarks.
     for i in range(0, faces.shape[0]):
-        img = imgs[faces.iloc[i].imgid]
+        img = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=faces.iloc[i].imgid))) 
         pointsAvg = transform_warp_image(
             img, faces.iloc[i].points, eyecornerDst, boundaryPts, w, h, faces.shape[0], pointsNorm, imagesNorm, pointsAvg)
 
@@ -158,7 +155,7 @@ def process_dataframe(ofname, grouped_df, face_df):
         os.makedirs(rdir)
     if not os.path.exists(ddir):
         os.makedirs(ddir)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()*2) as executor:
         no_downloaded = 0
         futures = {executor.submit(
             process_row, grp, face_df, ofname): grp for grp in grouped_df}

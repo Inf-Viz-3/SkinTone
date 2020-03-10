@@ -187,7 +187,7 @@ faces_df = pd.read_json("faces.json")
 # load images into memory
 # load all raw files in mem:
 imgs_in_mem = {}
-for i, row in face_df.iterrows():
+for i, row in faces_df.iterrows():
     if row.imgid not in imgs_in_mem.keys():
         imgs_in_mem[row.imgid] = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=row.imgid))) 
 

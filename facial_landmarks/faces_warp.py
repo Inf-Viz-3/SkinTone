@@ -46,7 +46,7 @@ def transform_landmarks_only(imgpoints, eyecornerDst, boundaryPts, n, pointsAvg)
     return (pointsAvg , points)
 
 
-def process_transform(ids, grpname, facesdf, ofname):
+def process_transform(ids, grpname, facesdf, ofname, memimgs):
     faces = facesdf[facesdf.imgid.isin(ids)]
     faces_length = faces.shape[0]
     imgs = {}
@@ -105,7 +105,7 @@ def process_transform(ids, grpname, facesdf, ofname):
                 tin.append(pIn)
                 tout.append(pOut)
             
-            sourceimg = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=faces.iloc[i].imgid))) 
+            sourceimg = memimgs[faces.iloc[i].imgid]
             normedimg = transform_warp_image_only(sourceimg, faces.iloc[i].points, eyecornerDst, w, h)
             face_average.warpTriangle(normedimg, img, tin, tout)
             # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), sourceimg)
@@ -139,7 +139,7 @@ def process_transform(ids, grpname, facesdf, ofname):
     return {"groupkey": grpname, "images": list(imgs.keys()), "faces": [], "landmarks": averageFacialLandmarks}
 
 
-def process_row(grpdata, faces_df, ofname):
+def process_row(grpdata, faces_df, ofname, imgs_in_mem):
     grpname, grp = grpdata
     ids = list()
     if (isinstance(grpname, tuple)):
@@ -149,10 +149,10 @@ def process_row(grpdata, faces_df, ofname):
 
     for row_index, row in grp.iterrows():
        ids.append(row_index)
-    return process_transform(ids, grpname, faces_df, ofname)
+    return process_transform(ids, grpname, faces_df, ofname, imgs_in_mem)
 
 
-def process_dataframe(ofname, grouped_df, face_df):
+def process_dataframe(ofname, grouped_df, face_df, imgs_in_mem):
     rdir = os.path.join("results", ofname)
     ddir = os.path.join("debug", ofname)
     if not os.path.exists(rdir):
@@ -162,7 +162,7 @@ def process_dataframe(ofname, grouped_df, face_df):
     with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         no_downloaded = 0
         futures = {executor.submit(
-            process_row, grp, face_df, ofname): grp for grp in grouped_df}
+            process_row, grp, face_df, ofname, imgs_in_mem): grp for grp in grouped_df}
         face_warp_hist = {}
         for future in concurrent.futures.as_completed(futures):
             result = futures[future]
@@ -184,6 +184,13 @@ def process_dataframe(ofname, grouped_df, face_df):
 
 faces_df = pd.read_json("faces.json")
 
+# load images into memory
+# load all raw files in mem:
+imgs_in_mem = {}
+for i, row in face_df.iterrows():
+    if row.imgid not in imgs_in_mem.keys():
+        imgs_in_mem[row.imgid] = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=row.imgid))) 
+
 omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding='utf8')
 
 omniart_df.creation_year = pd.to_numeric(
@@ -195,43 +202,43 @@ omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
 # Warp images depending on group
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["creation_year"])
-process_dataframe("yearly", omnifaces_grouped, faces_df)
+process_dataframe("yearly", omnifaces_grouped, faces_df, imgs_in_mem)
 print("yearly done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "creation_year"])
-process_dataframe("yearly-gender", omnifaces_grouped, faces_df)
+process_dataframe("yearly-gender", omnifaces_grouped, faces_df, imgs_in_mem)
 print("yearly gender done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "creation_year"])
-process_dataframe("yearly-age", omnifaces_grouped, faces_df)
+process_dataframe("yearly-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("yearly age done")
 
 omnifaces_df["decade"] = omnifaces_df.creation_year.floordiv(10)
 omnifaces_df.sort_values(by="decade")
 omnifaces_grouped = omnifaces_df.groupby(by=["decade"])
-process_dataframe("decade", omnifaces_grouped, faces_df)
+process_dataframe("decade", omnifaces_grouped, faces_df, imgs_in_mem)
 print("decade done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "decade"])
-process_dataframe("decade-gender", omnifaces_grouped, faces_df)
+process_dataframe("decade-gender", omnifaces_grouped, faces_df, imgs_in_mem)
 print("decade gender done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "decade"])
-process_dataframe("decade-age", omnifaces_grouped, faces_df)
+process_dataframe("decade-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("decade age done")
 
 omnifaces_df["century"] = omnifaces_df.creation_year.floordiv(100)
 omnifaces_df.sort_values(by="century")
 omnifaces_grouped = omnifaces_df.groupby(by=["century"])
-process_dataframe("century", omnifaces_grouped, faces_df)
+process_dataframe("century", omnifaces_grouped, faces_df, imgs_in_mem)
 print("century done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "century"])
-process_dataframe("century-gender", omnifaces_grouped, faces_df)
+process_dataframe("century-gender", omnifaces_grouped, faces_df, imgs_in_mem)
 print("century gender done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "century"])
-process_dataframe("century-age", omnifaces_grouped, faces_df)
+process_dataframe("century-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("century age done")

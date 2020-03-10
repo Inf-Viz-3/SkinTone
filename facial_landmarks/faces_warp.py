@@ -192,33 +192,42 @@ omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["creation_year"])
 process_dataframe("yearly", omnifaces_grouped, faces_df)
+print("yearly done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "creation_year"])
 process_dataframe("yearly-gender", omnifaces_grouped, faces_df)
+print("yearly gender done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "creation_year"])
 process_dataframe("yearly-age", omnifaces_grouped, faces_df)
+print("yearly age done")
 
 omnifaces_df["decade"] = omnifaces_df.creation_year.floordiv(10)
 omnifaces_df.sort_values(by="decade")
 omnifaces_grouped = omnifaces_df.groupby(by=["decade"])
 process_dataframe("decade", omnifaces_grouped, faces_df)
+print("decade done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "decade"])
 process_dataframe("decade-gender", omnifaces_grouped, faces_df)
+print("decade gender done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "decade"])
 process_dataframe("decade-age", omnifaces_grouped, faces_df)
+print("decade age done")
 
 omnifaces_df["century"] = omnifaces_df.creation_year.floordiv(100)
 omnifaces_df.sort_values(by="century")
 omnifaces_grouped = omnifaces_df.groupby(by=["century"])
 process_dataframe("century", omnifaces_grouped, faces_df)
+print("century done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "century"])
 process_dataframe("century-gender", omnifaces_grouped, faces_df)
+print("century gender done")
 
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "century"])
 process_dataframe("century-age", omnifaces_grouped, faces_df)
+print("century age done")

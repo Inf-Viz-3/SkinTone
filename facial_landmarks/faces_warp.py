@@ -15,19 +15,23 @@ faces_folder_path = "./imgs"
 crops_folder_path = "./crops"
 
 
-def transform_warp_image(fimg, imgpoints, eyecornerDst, boundaryPts, w, h, n, pointsNorm, imagesNorm, pointsAvg):
+def transform_warp_image_only(fimg, imgpoints, eyecornerDst, w, h):
+    # Corners of the eye in input image
+    eyecornerSrc = [imgpoints[36], imgpoints[45]]
+    # Compute similarity transform
+    tform = face_average.similarityTransform(eyecornerSrc, eyecornerDst)
+    # Apply similarity transformation
+    img = cv2.warpAffine(fimg, tform, (w, h))
+    return img
+
+def transform_landmarks_only(imgpoints, eyecornerDst, boundaryPts, n, pointsAvg):
     points1 = imgpoints
 
     # Corners of the eye in input image
     eyecornerSrc = [imgpoints[36], points1[45]]
-    for pt in imgpoints:
-        pass
-        # cv2.circle(fimg, (pt[0], pt[1]),2,(0,0,255),2)
+
     # Compute similarity transform
     tform = face_average.similarityTransform(eyecornerSrc, eyecornerDst)
-
-    # Apply similarity transformation
-    img = cv2.warpAffine(fimg, tform, (w, h))
 
     # Apply similarity transform on points
     points2 = np.reshape(np.array(points1), (68, 1, 2))
@@ -39,13 +43,12 @@ def transform_warp_image(fimg, imgpoints, eyecornerDst, boundaryPts, w, h, n, po
 
     # Calculate location of average landmark points.
     pointsAvg = pointsAvg + points / n
-    pointsNorm.append(points)
-    imagesNorm.append(img)
-    return pointsAvg
+    return (pointsAvg , points)
 
 
 def process_transform(ids, grpname, facesdf, ofname):
     faces = facesdf[facesdf.imgid.isin(ids)]
+    faces_length = faces.shape[0]
     imgs = {}
     for i, row in faces.iterrows():
         if row.imgid not in imgs.keys():
@@ -62,7 +65,6 @@ def process_transform(ids, grpname, facesdf, ofname):
     eyecornerDst = [(np.int(0.3 * w), np.int(h / 3)),
                     (np.int(0.7 * w), np.int(h / 3))]
 
-    imagesNorm = []
     pointsNorm = []
 
     # Add boundary points for delaunay triangulation
@@ -77,9 +79,8 @@ def process_transform(ids, grpname, facesdf, ofname):
     # Warp images and trasnform landmarks to output coordinate system,
     # and find average of transformed landmarks.
     for i in range(0, faces.shape[0]):
-        img = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=faces.iloc[i].imgid))) 
-        pointsAvg = transform_warp_image(
-            img, faces.iloc[i].points, eyecornerDst, boundaryPts, w, h, faces.shape[0], pointsNorm, imagesNorm, pointsAvg)
+        pointsAvg, normedPoints = transform_landmarks_only(faces.iloc[i].points, eyecornerDst, boundaryPts, faces_length, pointsAvg)
+        pointsNorm.append(normedPoints)
 
     # Delaunay triangulation
     rect = (0, 0, w, h)
@@ -89,7 +90,7 @@ def process_transform(ids, grpname, facesdf, ofname):
     output = np.zeros((h, w, 3), np.float32())
 
     # Warp input images to average image landmarks
-    for i in range(0, len(imagesNorm)):
+    for i in range(0, faces_length):
         img = np.zeros((h, w, 3), np.float32())
         # Transform triangles one by one
         for j in range(0, len(dt)):
@@ -103,9 +104,12 @@ def process_transform(ids, grpname, facesdf, ofname):
 
                 tin.append(pIn)
                 tout.append(pOut)
-            face_average.warpTriangle(imagesNorm[i], img, tin, tout)
-            # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), img)
-            # cv2.imwrite("debug/{0}_{1}.jpg".format(str(grpname), i), imagesNorm[i])
+            
+            sourceimg = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=faces.iloc[i].imgid))) 
+            normedimg = transform_warp_image_only(sourceimg, faces.iloc[i].points, eyecornerDst, w, h)
+            face_average.warpTriangle(normedimg, img, tin, tout)
+            # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), sourceimg)
+            # cv2.imwrite("debug/{0}_{1}.jpg".format(str(grpname), i), normedimg)
         # Add image intensities for averaging
         # cv2.imwrite("debug/2_{0}_{1}.jpg".format(str(grpname), i), imagesNorm[i])
         output = output + img
@@ -155,7 +159,7 @@ def process_dataframe(ofname, grouped_df, face_df):
         os.makedirs(rdir)
     if not os.path.exists(ddir):
         os.makedirs(ddir)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()*2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         no_downloaded = 0
         futures = {executor.submit(
             process_row, grp, face_df, ofname): grp for grp in grouped_df}

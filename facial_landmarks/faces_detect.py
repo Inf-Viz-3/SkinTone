@@ -17,6 +17,19 @@ from sklearn.utils import shuffle
 
 import face_average
 
+def resizewithratio(img):
+    height, width = img.shape[:2]
+    max_height = 250
+    max_width = 250
+    
+    # get scaling factor
+    scaling_factor = max_height / float(height)
+    if max_width/float(width) < scaling_factor:
+        scaling_factor = max_width / float(width)
+    # resize image
+    img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
+
+    return img
 
 def getFaceBox(net, frame, conf_threshold=0.7):
     frameOpencvDnn = frame.copy()
@@ -99,7 +112,7 @@ def process_image(filename):
     dets = detector(imgcv, 1)
 
     if (len(dets) == 0):
-        cv2.imwrite("missed/{0}.png".format(basename), imgcv)
+        cv2.imwrite("missed/{0}.jpg".format(basename), imgcv)
         return None
 
     imgfaces_df = pd.DataFrame()
@@ -118,10 +131,10 @@ def process_image(filename):
         # extract the main face to determine color (points 1, 28, 17, 9)
         r, g, b = face_average.extract_dominant_color(imgcv, landmarks)
         for i in range(shape.num_parts):
-            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
-                       2, (0, 0, 255), 4 * pointf)
-            cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
-                       2, (b, g, r), 2 * pointf)
+            # cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
+            #            2, (0, 0, 255), 4 * pointf)
+            # cv2.circle(imgcv, (shape.part(i).x, shape.part(i).y),
+            #            2, (b, g, r), 2 * pointf)
             raw_points = (shape.part(i).x, shape.part(i).y)
             points.append(raw_points)
 
@@ -134,6 +147,9 @@ def process_image(filename):
             "age": faces_age[k],
             "color": [(r, g, b)]
         })
+
+        facecrop = imgcv[d.top():d.bottom(), d.left():d.right()]
+        cv2.imwrite("faces/{0}_{1}.jpg".format(basename, k), resizewithratio(facecrop))
         imgfaces_df = imgfaces_df.append(df)
 
         # Paint dominant color rect

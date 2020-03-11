@@ -11,6 +11,8 @@ facial_landmarks/overlays/*.json
 facial_landmarks/overlays/*.jpg
 facial_landmarks/results/**/*.json
 facial_landmarks/results/**/*.jpg
+facial_landmarks/faces/**/*.jpg
+facial_landmarks/missed/**/*.jpg
 facial_landmarks/faces.json
 
 # Byte-compiled / optimized / DLL files

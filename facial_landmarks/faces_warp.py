@@ -24,6 +24,7 @@ def transform_warp_image_only(fimg, imgpoints, eyecornerDst, w, h):
     img = cv2.warpAffine(fimg, tform, (w, h))
     return img
 
+
 def transform_landmarks_only(imgpoints, eyecornerDst, boundaryPts, n, pointsAvg):
     points1 = imgpoints
 
@@ -43,16 +44,18 @@ def transform_landmarks_only(imgpoints, eyecornerDst, boundaryPts, n, pointsAvg)
 
     # Calculate location of average landmark points.
     pointsAvg = pointsAvg + points / n
-    return (pointsAvg , points)
+    return (pointsAvg, points)
 
 
 def process_transform(ids, grpname, facesdf, ofname, memimgs):
     faces = facesdf[facesdf.imgid.isin(ids)]
     faces_length = faces.shape[0]
-    imgs = {}
+    imgfaces = {}
     for i, row in faces.iterrows():
-        if row.imgid not in imgs.keys():
-            imgs[row.imgid] = "keep"
+        if row.imgid not in imgfaces.keys():
+            imgfaces[row.imgid] = [row.faceid]
+        else:
+            imgfaces[row.imgid].append(row.faceid)
 
     if faces.shape[0] < 2:
         return
@@ -79,7 +82,8 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
     # Warp images and trasnform landmarks to output coordinate system,
     # and find average of transformed landmarks.
     for i in range(0, faces.shape[0]):
-        pointsAvg, normedPoints = transform_landmarks_only(faces.iloc[i].points, eyecornerDst, boundaryPts, faces_length, pointsAvg)
+        pointsAvg, normedPoints = transform_landmarks_only(
+            faces.iloc[i].points, eyecornerDst, boundaryPts, faces_length, pointsAvg)
         pointsNorm.append(normedPoints)
 
     # Delaunay triangulation
@@ -104,9 +108,10 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
 
                 tin.append(pIn)
                 tout.append(pOut)
-            
+
             sourceimg = memimgs[faces.iloc[i].imgid]
-            normedimg = transform_warp_image_only(sourceimg, faces.iloc[i].points, eyecornerDst, w, h)
+            normedimg = transform_warp_image_only(
+                sourceimg, faces.iloc[i].points, eyecornerDst, w, h)
             face_average.warpTriangle(normedimg, img, tin, tout)
             # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), sourceimg)
             # cv2.imwrite("debug/{0}_{1}.jpg".format(str(grpname), i), normedimg)
@@ -118,7 +123,8 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
 
     # Get the average points of the face
     averageFacialLandmarks = pointsAvg[:-(len(boundaryPts))]
-    averageFacialLandmarks = [ (int(pt[0]), int(pt[1])) for pt in averageFacialLandmarks]
+    averageFacialLandmarks = [(int(pt[0]), int(pt[1]))
+                              for pt in averageFacialLandmarks]
 
     r, g, b = face_average.extract_dominant_color(
         output, averageFacialLandmarks)
@@ -136,7 +142,10 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
         "results/{1}/{0}_mask.png".format(str(grpname), ofname), facemaskimg)
     cv2.imwrite("results/{1}/{0}.jpg".format(str(grpname), ofname), output)
 
-    return {"groupkey": grpname, "images": list(imgs.keys()), "faces": [], "landmarks": averageFacialLandmarks}
+    jsonimages = [{"id": imgid, "faceids": imgfaces[imgid]}
+                  for imgid in imgfaces.keys()]
+
+    return {"groupkey": grpname, "images": jsonimages, "faces": [], "landmarks": averageFacialLandmarks}
 
 
 def process_row(grpdata, faces_df, ofname, imgs_in_mem):
@@ -148,7 +157,7 @@ def process_row(grpdata, faces_df, ofname, imgs_in_mem):
         grpname = str(grpname)
 
     for row_index, row in grp.iterrows():
-       ids.append(row_index)
+        ids.append(row_index)
     return process_transform(ids, grpname, faces_df, ofname, imgs_in_mem)
 
 
@@ -172,7 +181,7 @@ def process_dataframe(ofname, grouped_df, face_df, imgs_in_mem):
                     face_warp_hist[result["groupkey"]] = {
                         "images": result["images"],
                         "landmarks": result["landmarks"]
-                        }
+                    }
             except Exception as e:
                 print('%r generated an exception: %s' % (result, e))
             else:
@@ -189,7 +198,8 @@ faces_df = pd.read_json("faces.json")
 imgs_in_mem = {}
 for i, row in faces_df.iterrows():
     if row.imgid not in imgs_in_mem.keys():
-        imgs_in_mem[row.imgid] = cv2.imread(os.path.join("imgs", "{fid}.jpg".format(fid=row.imgid))) 
+        imgs_in_mem[row.imgid] = cv2.imread(os.path.join(
+            "imgs", "{fid}.jpg".format(fid=row.imgid)))
 
 omniart_df = pd.read_csv("omniart_v3_portrait.csv", encoding='utf8')
 
@@ -198,6 +208,28 @@ omniart_df.creation_year = pd.to_numeric(
 omniart_df = omniart_df[omniart_df.id.isin(faces_df.imgid.unique())]
 
 omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
+
+# Warp images depending on group
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_df["overall"] = "1"
+omnifaces_grouped = omnifaces_df.groupby(by=["overall"])
+process_dataframe("overall", omnifaces_grouped, faces_df, imgs_in_mem)
+print("overall")
+
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["gender"])
+process_dataframe("overall-gender", omnifaces_grouped, faces_df, imgs_in_mem)
+print("overall gender done")
+
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["age"])
+process_dataframe("overall-age", omnifaces_grouped, faces_df, imgs_in_mem)
+print("overall age done")
+
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["group"])
+process_dataframe("overall-age", omnifaces_grouped, faces_df, imgs_in_mem)
+print("overall group done")
 
 # Warp images depending on group
 omnifaces_df.sort_values(by="creation_year")
@@ -215,6 +247,11 @@ omnifaces_grouped = omnifaces_df.groupby(by=["age", "creation_year"])
 process_dataframe("yearly-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("yearly age done")
 
+omnifaces_df.sort_values(by="creation_year")
+omnifaces_grouped = omnifaces_df.groupby(by=["group", "creation_year"])
+process_dataframe("yearly-group", omnifaces_grouped, faces_df, imgs_in_mem)
+print("yearly group done")
+
 omnifaces_df["decade"] = omnifaces_df.creation_year.floordiv(10)
 omnifaces_df.sort_values(by="decade")
 omnifaces_grouped = omnifaces_df.groupby(by=["decade"])
@@ -229,6 +266,10 @@ omnifaces_grouped = omnifaces_df.groupby(by=["age", "decade"])
 process_dataframe("decade-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("decade age done")
 
+omnifaces_grouped = omnifaces_df.groupby(by=["group", "decade"])
+process_dataframe("decade-group", omnifaces_grouped, faces_df, imgs_in_mem)
+print("decade group done")
+
 omnifaces_df["century"] = omnifaces_df.creation_year.floordiv(100)
 omnifaces_df.sort_values(by="century")
 omnifaces_grouped = omnifaces_df.groupby(by=["century"])
@@ -242,3 +283,7 @@ print("century gender done")
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "century"])
 process_dataframe("century-age", omnifaces_grouped, faces_df, imgs_in_mem)
 print("century age done")
+
+omnifaces_grouped = omnifaces_df.groupby(by=["group", "century"])
+process_dataframe("century-group", omnifaces_grouped, faces_df, imgs_in_mem)
+print("century group done")

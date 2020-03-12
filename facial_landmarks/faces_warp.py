@@ -46,11 +46,17 @@ def transform_landmarks_only(imgpoints, eyecornerDst, boundaryPts, n, pointsAvg)
     pointsAvg = pointsAvg + points / n
     return (pointsAvg, points)
 
+def calculate_distance(x, y):
+            sumval = ((x[0]-y[0])**2) + ((x[1]-y[1])**2)
+            distance = (sumval)**0.5
+            return distance
 
 def process_transform(ids, grpname, facesdf, ofname, memimgs):
     faces = facesdf[facesdf.imgid.isin(ids)]
     faces_length = faces.shape[0]
     imgfaces = {}
+    distances = {}
+
     for i, row in faces.iterrows():
         if row.imgid not in imgfaces.keys():
             imgfaces[row.imgid] = [row.faceid]
@@ -68,7 +74,7 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
     eyecornerDst = [(np.int(0.3 * w), np.int(h / 3)),
                     (np.int(0.7 * w), np.int(h / 3))]
 
-    pointsNorm = []
+    pointsNorm = {}
 
     # Add boundary points for delaunay triangulation
     boundaryPts = np.array(
@@ -81,27 +87,34 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
 
     # Warp images and trasnform landmarks to output coordinate system,
     # and find average of transformed landmarks.
-    for i in range(0, faces.shape[0]):
+    for i, row in faces.iterrows():
         pointsAvg, normedPoints = transform_landmarks_only(
-            faces.iloc[i].points, eyecornerDst, boundaryPts, faces_length, pointsAvg)
-        pointsNorm.append(normedPoints)
+            row.points, eyecornerDst, boundaryPts, faces_length, pointsAvg)
+        pointsNorm[f"{row.imgid}-{row.faceid}"] = normedPoints
 
     # Delaunay triangulation
     rect = (0, 0, w, h)
     dt = face_average.calculateDelaunayTriangles(rect, np.array(pointsAvg))
 
+    # Get the average points of the face
+    averageFacialLandmarks = pointsAvg[:-(len(boundaryPts))]
+    averageFacialLandmarks = [(int(pt[0]), int(pt[1]))
+                              for pt in averageFacialLandmarks]
+
     # Output image
     output = np.zeros((h, w, 3), np.float32())
 
     # Warp input images to average image landmarks
-    for i in range(0, faces_length):
+    result = {}
+    for i, row in faces.iterrows():
         img = np.zeros((h, w, 3), np.float32())
+
         # Transform triangles one by one
         for j in range(0, len(dt)):
             tin = []
             tout = []
             for k in range(0, 3):
-                pIn = pointsNorm[i][dt[j][k]]
+                pIn = pointsNorm[f"{row.imgid}-{row.faceid}"][dt[j][k]]
                 pIn = face_average.constrainPoint(pIn, w, h)
                 pOut = pointsAvg[dt[j][k]]
                 pOut = face_average.constrainPoint(pOut, w, h)
@@ -109,22 +122,26 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
                 tin.append(pIn)
                 tout.append(pOut)
 
-            sourceimg = memimgs[faces.iloc[i].imgid]
+            sourceimg = memimgs[row.imgid]
             normedimg = transform_warp_image_only(
-                sourceimg, faces.iloc[i].points, eyecornerDst, w, h)
+                sourceimg, row.points, eyecornerDst, w, h)
             face_average.warpTriangle(normedimg, img, tin, tout)
             # cv2.imwrite("debug/{0}_{1}_.jpg".format(str(grpname), i), sourceimg)
             # cv2.imwrite("debug/{0}_{1}.jpg".format(str(grpname), i), normedimg)
         # Add image intensities for averaging
         # cv2.imwrite("debug/2_{0}_{1}.jpg".format(str(grpname), i), imagesNorm[i])
+        faceLandMarks = pointsNorm[f"{row.imgid}-{row.faceid}"][:-(len(boundaryPts))]
+        faceLandMarks = [(int(pt[0]), int(pt[1])) for pt in faceLandMarks]
+
+        allDist = [calculate_distance(faceLandMarks[idx], averageFacialLandmarks[idx]) for idx in range(len(faceLandMarks))]
+        distance = sum(allDist)
+        imgfaces.keys()
+        result[f"{row.imgid}-{row.faceid}"] = {"img_id": row.imgid, "face_id": row.faceid, "deviation": distance }
+
         output = output + img
     # Divide by numImages to get average
     output = output / faces.shape[0]
 
-    # Get the average points of the face
-    averageFacialLandmarks = pointsAvg[:-(len(boundaryPts))]
-    averageFacialLandmarks = [(int(pt[0]), int(pt[1]))
-                              for pt in averageFacialLandmarks]
 
     r, g, b = face_average.extract_dominant_color(
         output, averageFacialLandmarks)
@@ -142,10 +159,13 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
         "results/{1}/{0}_mask.png".format(str(grpname), ofname), facemaskimg)
     cv2.imwrite("results/{1}/{0}.jpg".format(str(grpname), ofname), output)
 
-    jsonimages = [{"id": imgid, "faceids": imgfaces[imgid]}
-                  for imgid in imgfaces.keys()]
-
-    return {"groupkey": grpname, "images": jsonimages, "faces": [], "landmarks": averageFacialLandmarks}
+    
+    facesresult = [ row for key, row in result.items()]
+    def lmb_sort(x):
+        key = f"{x['img_id']}-{x['face_id']}"
+        return (result[key]['deviation'], result[key]['img_id'], result[key]['face_id'])
+    facesresult = sorted(facesresult, key=lmb_sort)
+    return {"groupkey": grpname, "faces": facesresult, "landmarks": averageFacialLandmarks}
 
 
 def process_row(grpdata, faces_df, ofname, imgs_in_mem):
@@ -178,12 +198,9 @@ def process_dataframe(ofname, grouped_df, face_df, imgs_in_mem):
             try:
                 result = future.result()
                 if (isinstance(result, dict)):
-                    face_warp_hist[result["groupkey"]] = {
-                        "images": result["images"],
-                        "landmarks": result["landmarks"]
-                    }
+                    face_warp_hist[result["groupkey"]] = result["faces"]
             except Exception as e:
-                print('%r generated an exception: %s' % (result, e))
+                print('generated an exception: %s' % (e))
             else:
                 no_downloaded += 1
         print("finished files {0}".format(no_downloaded))
@@ -191,7 +208,7 @@ def process_dataframe(ofname, grouped_df, face_df, imgs_in_mem):
             json.dump(face_warp_hist, outfile)
 
 
-faces_df = pd.read_json("faces.json")
+faces_df = pd.read_json("faces.json").head(10)
 
 # load images into memory
 # load all raw files in mem:
@@ -211,7 +228,7 @@ omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
 
 # Warp images depending on group
 omnifaces_df.sort_values(by="creation_year")
-omnifaces_df["overall"] = "1"
+omnifaces_df["overall"] = "overall"
 omnifaces_grouped = omnifaces_df.groupby(by=["overall"])
 process_dataframe("overall", omnifaces_grouped, faces_df, imgs_in_mem)
 print("overall")

@@ -136,7 +136,7 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
         allDist = [calculate_distance(faceLandMarks[idx], averageFacialLandmarks[idx]) for idx in range(len(faceLandMarks))]
         distance = sum(allDist)
         imgfaces.keys()
-        result[f"{row.imgid}-{row.faceid}"] = {"img_id": row.imgid, "face_id": row.faceid, "deviation": distance }
+        result[f"{row.imgid}-{row.faceid}"] = {"imgid": row.imgid, "faceid": row.faceid, "deviation": distance }
 
         output = output + img
     # Divide by numImages to get average
@@ -162,8 +162,8 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
     
     facesresult = [ row for key, row in result.items()]
     def lmb_sort(x):
-        key = f"{x['img_id']}-{x['face_id']}"
-        return (result[key]['deviation'], result[key]['img_id'], result[key]['face_id'])
+        key = f"{x['imgid']}-{x['faceid']}"
+        return (result[key]['deviation'], result[key]['imgid'], result[key]['faceid'])
     facesresult = sorted(facesresult, key=lmb_sort)
     return {"groupkey": grpname, "faces": facesresult, "landmarks": averageFacialLandmarks}
 

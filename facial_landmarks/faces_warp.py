@@ -208,7 +208,7 @@ def process_dataframe(ofname, grouped_df, face_df, imgs_in_mem):
             json.dump(face_warp_hist, outfile)
 
 
-faces_df = pd.read_json("faces.json").head(10)
+faces_df = pd.read_json("faces.json")
 
 # load images into memory
 # load all raw files in mem:
@@ -228,48 +228,48 @@ omnifaces_df = faces_df.set_index("imgid").join(omniart_df.set_index("id"))
 
 # Warp images depending on group
 omnifaces_df.sort_values(by="creation_year")
-omnifaces_df["overall"] = "overall"
-omnifaces_grouped = omnifaces_df.groupby(by=["overall"])
-process_dataframe("overall", omnifaces_grouped, faces_df, imgs_in_mem)
-print("overall")
+omnifaces_df["all"] = "all"
+omnifaces_grouped = omnifaces_df.groupby(by=["all"])
+process_dataframe("all", omnifaces_grouped, faces_df, imgs_in_mem)
+print("all")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["gender"])
-process_dataframe("overall-gender", omnifaces_grouped, faces_df, imgs_in_mem)
-print("overall gender done")
+process_dataframe("all-gender", omnifaces_grouped, faces_df, imgs_in_mem)
+print("all gender done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["age"])
-process_dataframe("overall-age", omnifaces_grouped, faces_df, imgs_in_mem)
-print("overall age done")
+process_dataframe("all-age", omnifaces_grouped, faces_df, imgs_in_mem)
+print("all age done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["group"])
-process_dataframe("overall-age", omnifaces_grouped, faces_df, imgs_in_mem)
-print("overall group done")
+process_dataframe("all-group", omnifaces_grouped, faces_df, imgs_in_mem)
+print("all group done")
 
 # Warp images depending on group
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["creation_year"])
-process_dataframe("yearly", omnifaces_grouped, faces_df, imgs_in_mem)
-print("yearly done")
+process_dataframe("year", omnifaces_grouped, faces_df, imgs_in_mem)
+print("year done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["gender", "creation_year"])
-process_dataframe("yearly-gender", omnifaces_grouped, faces_df, imgs_in_mem)
-print("yearly gender done")
+process_dataframe("year-gender", omnifaces_grouped, faces_df, imgs_in_mem)
+print("year gender done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["age", "creation_year"])
-process_dataframe("yearly-age", omnifaces_grouped, faces_df, imgs_in_mem)
-print("yearly age done")
+process_dataframe("year-age", omnifaces_grouped, faces_df, imgs_in_mem)
+print("year age done")
 
 omnifaces_df.sort_values(by="creation_year")
 omnifaces_grouped = omnifaces_df.groupby(by=["group", "creation_year"])
-process_dataframe("yearly-group", omnifaces_grouped, faces_df, imgs_in_mem)
-print("yearly group done")
+process_dataframe("year-group", omnifaces_grouped, faces_df, imgs_in_mem)
+print("year group done")
 
-omnifaces_df["decade"] = omnifaces_df.creation_year.floordiv(10)
+omnifaces_df["decade"] = (omnifaces_df.creation_year.floordiv(10) * 10)
 omnifaces_df.sort_values(by="decade")
 omnifaces_grouped = omnifaces_df.groupby(by=["decade"])
 process_dataframe("decade", omnifaces_grouped, faces_df, imgs_in_mem)
@@ -287,7 +287,7 @@ omnifaces_grouped = omnifaces_df.groupby(by=["group", "decade"])
 process_dataframe("decade-group", omnifaces_grouped, faces_df, imgs_in_mem)
 print("decade group done")
 
-omnifaces_df["century"] = omnifaces_df.creation_year.floordiv(100)
+omnifaces_df["century"] = (omnifaces_df.creation_year.floordiv(100) * 100)
 omnifaces_df.sort_values(by="century")
 omnifaces_grouped = omnifaces_df.groupby(by=["century"])
 process_dataframe("century", omnifaces_grouped, faces_df, imgs_in_mem)

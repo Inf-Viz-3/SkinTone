@@ -9,10 +9,10 @@ from skin import extractDominantColor, extractSkin
 import imutils
 
 
-def extract_dominant_color(img,  landmarks):
+def extract_dominant_color(crop):
     # extract the main face to determine color (points 1, 28, 17, 9)
     try:
-        crop = imutils.resize(img, width=250)
+        crop = imutils.resize(crop, width=250)
         skin = extractSkin(crop)
         color = extractDominantColor(skin, hasThresholding=True)
         dominant_color1 = color[0].get("color")
@@ -31,8 +31,6 @@ def extract_dominant_color(img,  landmarks):
         b=int(dominant_color[2])
     except Exception as e:
         # only average the cut out face
-        crop = img[int(landmarks[27][1]):int(landmarks[8][1])
-                      , int(landmarks[0][0]):int(landmarks[16][0])]
         dominant_color = crop.mean(axis=0).mean(axis=0)
         r=int(dominant_color[2])
         g=int(dominant_color[1])

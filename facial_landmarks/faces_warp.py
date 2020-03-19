@@ -143,20 +143,18 @@ def process_transform(ids, grpname, facesdf, ofname, memimgs):
     output = output / faces.shape[0]
 
 
-    r, g, b = face_average.extract_dominant_color(
-        output, averageFacialLandmarks)
+    # r, g, b = face_average.extract_dominant_color(output)
 
-    # Plot a mask
-    facemaskimg = np.zeros((h, w, 4), np.float32())
-    for pt in averageFacialLandmarks:
-        cv2.circle(facemaskimg, (int(pt[0]), int(
-            pt[1])), 3, (0, 0, 0, 255), pointf * 3)
-        cv2.circle(facemaskimg, (int(pt[0]), int(
-            pt[1])), 2, (b, g, r, 255), pointf * 2)
+    # # Plot a mask
+    # facemaskimg = np.zeros((h, w, 4), np.float32())
+    # for pt in averageFacialLandmarks:
+    #     cv2.circle(facemaskimg, (int(pt[0]), int(
+    #         pt[1])), 3, (0, 0, 0, 255), pointf * 3)
+    #     cv2.circle(facemaskimg, (int(pt[0]), int(
+    #         pt[1])), 2, (b, g, r, 255), pointf * 2)
 
     # Display result
-    cv2.imwrite(
-        "results/{1}/{0}_mask.png".format(str(grpname), ofname), facemaskimg)
+    # cv2.imwrite("results/{1}/{0}_mask.png".format(str(grpname), ofname), facemaskimg)
     cv2.imwrite("results/{1}/{0}.jpg".format(str(grpname), ofname), output)
 
     
